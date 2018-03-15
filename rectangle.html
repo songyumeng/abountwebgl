@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Web GL Demo - Rectangle</title>
+    <meta charset="utf-8" />
+
+    <style>
+        #c {
+            border: 2px solid red;
+        }
+    </style>
+
+</head>
+
+<body>
+    <canvas id="c" width="400" height="400"></canvas>
+
+    <script id="shader-vs" type="x-shader/vertex">
+        attribute vec3 aVertexPosition; varying vec3 vTexCoord; uniform vec3 uOffset; void main() { gl_Position = vec4(aVertexPosition,
+        1.0); vTexCoord = aVertexPosition + uOffset; }
+    </script>
+
+    <script id="shader-fs" type="x-shader/fragment">
+        precision mediump float; varying vec3 vTexCoord; void main() { gl_FragColor = vec4(vTexCoord, 0.9); }
+    </script>
+
+    <script>
+        var createBuffer = function (data) { //{{{
+            var buffer;
+
+            // step1. 创建buffer
+            buffer = gl.createBuffer();
+            // step2. bind刚创建的buffer,以便使用
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            // step3. 向buffer填充数据
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+            return buffer;
+        }; //}}}
+        var createShader = function (str, type) { //{{{
+            var shader;
+
+            // step1. 根据type(vertext, fragment)创建shader
+            shader = gl.createShader(type);
+            // step2. 设置shader代码
+            gl.shaderSource(shader, str);
+            // step3. 编译shader
+            gl.compileShader(shader);
+
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                throw gl.getShaderInfoLog(shader);
+            }
+
+            return shader;
+        }; //}}}
+        var createProgram = function (vstr, fstr) { //{{{
+            var program, vshader, fshader,
+
+                // step1. 创建program(设置shader代码, 编译shader)
+                program = gl.createProgram();
+            // step2. 创建shader
+            vshader = createShader(vstr, gl.VERTEX_SHADER);
+            fshader = createShader(fstr, gl.FRAGMENT_SHADER);
+            // step3. attach相应shader到program
+            gl.attachShader(program, vshader);
+            gl.attachShader(program, fshader);
+            // step4. 链接program
+            gl.linkProgram(program);
+
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                throw gl.getProgramInfoLog(program);
+            }
+
+            return program;
+        }; //}}}
+        var gl = document.getElementById("c").getContext('experimental-webgl');
+        //gl.clearColor(0.0, 0.0, 0.6, 1.0);
+        //gl.clear(gl.COLOR_BUFFER_BIT);
+        // buffer
+        var vertexPosBuffer, vertices;
+        /*
+        2--3
+        |\ |
+        | \|
+        0--1
+        */
+        vertices = [-1.0, -1.0, 0.0,
+            1.0, -1.0, 0.0, -1.0, 1.0, 0.0,
+            1.0, 1.0, 0.0
+        ];
+        // -1.0 <= x <= 1.0
+        // -1.0 <= y <= 1.0
+        // -1.0 <= z <= 1.0
+
+
+        // createBuffer
+        // 创建buffer
+        vertexPosBuffer = gl.createBuffer();
+        // 绑定刚创建的buffer
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexPosBuffer);
+        // 向buffer填充顶点数据
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+
+        var vs, fs, program,
+            offset = [1.0, 1.0, 0.0];
+        // shader
+        //顶点着色器
+        vs = document.getElementById('shader-vs').textContent;
+        //片段着色器
+        fs = document.getElementById('shader-fs').textContent;
+
+
+        //调用webgl的gl.createProgram()\gl.attachShader()移机gl.linkProgram()方法将它们链接到同一段程序里
+        // program
+        var vshader, fshader,
+
+        // step1. 创建program(设置shader代码, 编译shader)
+        program = gl.createProgram();
+        // step2. 创建shader
+        vshader = createShader(vs, gl.VERTEX_SHADER);
+        fshader = createShader(fs, gl.FRAGMENT_SHADER);
+        // step3. attach相应shader到program
+        gl.attachShader(program, vshader);
+        gl.attachShader(program, fshader);
+        // step4. 链接program
+        gl.linkProgram(program);
+
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            throw gl.getProgramInfoLog(program);
+        }
+
+
+        //设置待用的着色器
+        gl.useProgram(program);
+        /* note: (http://stackoverflow.com/questions/3665671/is-vertexattribpointer-needed-after-each-bindbuffer)
+           you can bind multiple buffers to different attributes.
+           say attribute 0 uses buffer 1, while attribute 1 and 2 use buffer 2).
+           it may look like somthing as:
+            glBindBuffer(GL_ARRAY_BUFFER, 1);
+            glVertexAttribPointer(0, ...)
+            glBindBuffer(GL_ARRAY_BUFFER, 2);
+            glVertexAttribPointer(1, ...)
+            glVertexAttribPointer(2, ...)
+            glDraw*(...)
+         */
+        // 用bind的buffer,向shader传递attribute数据(点位置)
+        //gl.bindBuffer(gl.ARRAY_BUFFER, vertexPosBuffer);
+        program.vertexPosAttrib = gl.getAttribLocation(program, 'aVertexPosition');
+        gl.enableVertexAttribArray(program.vertexPosAttrib);
+        gl.vertexAttribPointer(program.vertexPosAttrib, 3, gl.FLOAT, false, 0, 0);
+        // 向shader传递uniform数据
+        program.offsetUniform = gl.getUniformLocation(program, 'uOffset');
+        gl.uniform3f(program.offsetUniform, offset[0], offset[1], offset[2]);
+        // draw
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        /*note:
+          这里设置uOffset为1,1,0.传入fragment shader的vTexCoord是aVertexPosition+uOffset
+          然后将这个vTexCoord赋给gl_FragColor.
+          则最终各个vertex的颜色会是：
+          (0,2,0,1)2--3(2,2,0,1)
+                   |\ |
+                   | \|
+          (0,0,0,1)0--1(2,0,0,1)
+          按r,g,b,a来理解,则0->黑色,1->红色,2->绿色,3->黄色
+          然后真正的像素颜色,会以这4个顶点的颜色进行插值后得到
+         */
+    </script>
+</body>
+
+</html>
